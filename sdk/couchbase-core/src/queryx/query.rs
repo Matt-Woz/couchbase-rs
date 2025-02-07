@@ -10,6 +10,10 @@ use crate::queryx::query_options::{
 };
 use crate::queryx::query_respreader::QueryRespReader;
 use crate::retry::RetryStrategy;
+use crate::tracingcomponent::{
+    end_dispatch_span, BeginDispatchFields, EndDispatchFields, OperationId, TracingComponent,
+};
+use crate::util::{get_host_port_from_uri, get_host_port_tuple_from_uri};
 use bytes::Bytes;
 use futures::StreamExt;
 use http::Method;
@@ -17,9 +21,11 @@ use log::debug;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
+use tracing::{instrument, Instrument, Level, Span};
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -29,6 +35,8 @@ pub struct Query<C: Client> {
     pub endpoint: String,
     pub username: String,
     pub password: String,
+
+    pub(crate) tracing: Arc<TracingComponent>,
 }
 
 impl<C: Client> Query<C> {
@@ -68,7 +76,6 @@ impl<C: Client> Query<C> {
         body: Option<Bytes>,
     ) -> crate::httpx::error::Result<Response> {
         let req = self.new_request(method, path, content_type, on_behalf_of, body);
-
         self.http_client.execute(req).await
     }
 
@@ -132,6 +139,12 @@ impl<C: Client> Query<C> {
             )
         })?);
 
+        let dispatch_span = self.tracing.create_dispatch_span(&BeginDispatchFields::new(
+            None,
+            get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
+            None,
+        ));
+
         let res = self
             .execute(
                 Method::POST,
@@ -140,12 +153,34 @@ impl<C: Client> Query<C> {
                 on_behalf_of,
                 Some(body),
             )
+            .instrument(dispatch_span.clone())
             .await
             .map_err(|e| {
                 Error::new_http_error(e, &self.endpoint, &statement, &client_context_id)
             })?;
 
+        end_dispatch_span(
+            dispatch_span,
+            EndDispatchFields::new(None, Some(OperationId::String(client_context_id.clone()))),
+        );
+
         QueryRespReader::new(res, &self.endpoint, statement, client_context_id).await
+    }
+
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "query",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "query",
+        db.statement = opts.statement.as_deref().unwrap_or(""),
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn query_with_span(&self, opts: &QueryOptions) -> error::Result<QueryRespReader> {
+        self.tracing.record_cluster_labels(&Span::current());
+        self.query(opts).await
     }
 
     pub async fn get_all_indexes(
@@ -216,7 +251,7 @@ impl<C: Client> Query<C> {
         let opts = QueryOptions::new()
             .statement(qs)
             .on_behalf_of(opts.on_behalf_of.cloned());
-        let mut res = self.query(&opts).await?;
+        let mut res = self.query_with_span(&opts).await?;
 
         let mut indexes = vec![];
 
@@ -265,7 +300,7 @@ impl<C: Client> Query<C> {
             .statement(qs)
             .on_behalf_of(opts.on_behalf_of.cloned());
 
-        let mut res = self.query(&query_opts).await;
+        let mut res = self.query_with_span(&query_opts).await;
 
         // This is a bit mad...
         match res {
@@ -336,7 +371,7 @@ impl<C: Client> Query<C> {
             .statement(qs)
             .on_behalf_of(opts.on_behalf_of.cloned());
 
-        let mut res = self.query(&query_opts).await;
+        let mut res = self.query_with_span(&query_opts).await;
 
         // This is a bit mad...
         match res {
@@ -399,7 +434,7 @@ impl<C: Client> Query<C> {
             .statement(qs)
             .on_behalf_of(opts.on_behalf_of.cloned());
 
-        let mut res = self.query(&query_opts).await;
+        let mut res = self.query_with_span(&query_opts).await;
 
         match res {
             Err(e) => match &*e.kind {
@@ -435,7 +470,7 @@ impl<C: Client> Query<C> {
             .statement(qs)
             .on_behalf_of(opts.on_behalf_of.cloned());
 
-        let res = self.query(&query_opts).await;
+        let mut res = self.query_with_span(&query_opts).await;
 
         match res {
             Err(e) => match &*e.kind {
@@ -513,7 +548,7 @@ impl<C: Client> Query<C> {
                 .statement(qs)
                 .on_behalf_of(opts.on_behalf_of.cloned());
 
-            let res = self.query(&query_opts).await;
+            let res = self.query_with_span(&query_opts).await;
 
             match res {
                 Err(e) => match &*e.kind {

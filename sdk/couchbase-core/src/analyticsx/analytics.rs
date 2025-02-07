@@ -5,10 +5,15 @@ use crate::analyticsx::query_respreader::QueryRespReader;
 use crate::httpx::client::Client;
 use crate::httpx::request::{Auth, BasicAuth, OnBehalfOfInfo, Request};
 use crate::httpx::response::Response;
+use crate::tracingcomponent::{
+    end_dispatch_span, BeginDispatchFields, EndDispatchFields, OperationId, TracingComponent,
+};
+use crate::util::get_host_port_tuple_from_uri;
 use bytes::Bytes;
 use http::Method;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tracing::Instrument;
 
 #[derive(Debug)]
 pub struct Analytics<C: Client> {
@@ -17,6 +22,8 @@ pub struct Analytics<C: Client> {
     pub endpoint: String,
     pub username: String,
     pub password: String,
+
+    pub(crate) tracing: Arc<TracingComponent>,
 }
 
 impl<C: Client> Analytics<C> {
@@ -122,6 +129,12 @@ impl<C: Client> Analytics<C> {
             None
         };
 
+        let dispatch_span = self.tracing.create_dispatch_span(&BeginDispatchFields::new(
+            None,
+            get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
+            None,
+        ));
+
         let res = self
             .execute(
                 Method::POST,
@@ -131,6 +144,7 @@ impl<C: Client> Analytics<C> {
                 headers,
                 Some(Bytes::from(body)),
             )
+            .instrument(dispatch_span.clone())
             .await
             .map_err(|e| {
                 Error::new_generic_error_with_source(
@@ -141,6 +155,11 @@ impl<C: Client> Analytics<C> {
                     Arc::new(e),
                 )
             })?;
+
+        end_dispatch_span(
+            dispatch_span,
+            EndDispatchFields::new(None, client_context_id.clone().map(OperationId::String)),
+        );
 
         QueryRespReader::new(res, &self.endpoint, statement, client_context_id.clone()).await
     }

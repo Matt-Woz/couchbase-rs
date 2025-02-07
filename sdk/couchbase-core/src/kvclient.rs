@@ -22,6 +22,7 @@ use crate::memdx::op_bootstrap::BootstrapOptions;
 use crate::memdx::request::{GetErrorMapRequest, HelloRequest, SelectBucketRequest};
 use crate::service_type::ServiceType;
 use crate::tls_config::TlsConfig;
+use crate::tracingcomponent::TracingComponent;
 use crate::util::hostname_from_addr_str;
 
 #[derive(Clone)]
@@ -58,6 +59,7 @@ pub(crate) struct KvClientOptions {
     pub orphan_handler: OrphanResponseHandler,
     pub on_close: OnKvClientCloseHandler,
     pub disable_decompression: bool,
+    pub tracing: Arc<TracingComponent>,
 }
 
 pub(crate) trait KvClient: Sized + PartialEq + Send + Sync {
@@ -198,6 +200,7 @@ where
             }),
             orphan_handler: opts.orphan_handler,
             disable_decompression: opts.disable_decompression,
+            tracing: opts.tracing,
         };
 
         let conn = if let Some(tls) = config.tls.clone() {

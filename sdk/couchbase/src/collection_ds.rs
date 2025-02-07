@@ -8,6 +8,7 @@ use crate::subdoc::mutate_in_specs::MutateInSpec;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::collections::HashMap;
+use tracing::{instrument, Level};
 
 #[derive(Clone)]
 pub struct CouchbaseList<'a> {
@@ -68,13 +69,84 @@ impl Collection {
 
 impl CouchbaseList<'_> {
     pub async fn iter<T: DeserializeOwned>(&self) -> crate::error::Result<impl Iterator<Item = T>> {
+        self.iter_internal().await
+    }
+
+    pub async fn get<V: DeserializeOwned>(&self, index: usize) -> crate::error::Result<V> {
+        self.get_internal(index).await
+    }
+
+    pub async fn remove(&self, index: usize) -> crate::error::Result<()> {
+        self.remove_internal(index).await
+    }
+
+    pub async fn append<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+        self.append_internal(value).await
+    }
+
+    pub async fn prepend<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+        self.prepend_internal(value).await
+    }
+
+    pub async fn position<V: PartialEq + DeserializeOwned>(
+        &self,
+        value: V,
+    ) -> crate::error::Result<isize> {
+        self.position_internal(value).await
+    }
+
+    pub async fn len(&self) -> crate::error::Result<usize> {
+        self.len_internal().await
+    }
+
+    pub async fn clear(&self) -> crate::error::Result<()> {
+        self.clear_internal().await
+    }
+
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_iter",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_iter",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn iter_internal<T: DeserializeOwned>(
+        &self,
+    ) -> crate::error::Result<impl Iterator<Item = T>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
         let list_contents: Vec<T> = res.content_as()?;
 
         Ok(list_contents.into_iter())
     }
 
-    pub async fn get<V: DeserializeOwned>(&self, index: usize) -> crate::error::Result<V> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_get",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_get",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn get_internal<V: DeserializeOwned>(&self, index: usize) -> crate::error::Result<V> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(
@@ -87,7 +159,24 @@ impl CouchbaseList<'_> {
         res.content_as(0)
     }
 
-    pub async fn remove(&self, index: usize) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_remove",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_remove",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn remove_internal(&self, index: usize) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection
             .mutate_in(
                 &self.id,
@@ -99,7 +188,24 @@ impl CouchbaseList<'_> {
         Ok(())
     }
 
-    pub async fn append<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_append",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_append",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn append_internal<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection
             .mutate_in(
                 &self.id,
@@ -111,7 +217,24 @@ impl CouchbaseList<'_> {
         Ok(())
     }
 
-    pub async fn prepend<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_prepend",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_prepend",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    pub async fn prepend_internal<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection
             .mutate_in(
                 &self.id,
@@ -123,10 +246,27 @@ impl CouchbaseList<'_> {
         Ok(())
     }
 
-    pub async fn position<V: PartialEq + DeserializeOwned>(
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_position",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_position",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    pub async fn position_internal<V: PartialEq + DeserializeOwned>(
         &self,
         value: V,
     ) -> crate::error::Result<isize> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let get_res = self.collection.get(&self.id, None).await?;
 
         let list_contents: Vec<V> = get_res.content_as()?;
@@ -139,7 +279,24 @@ impl CouchbaseList<'_> {
         Ok(-1)
     }
 
-    pub async fn len(&self) -> crate::error::Result<usize> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_len",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_len",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    pub async fn len_internal(&self) -> crate::error::Result<usize> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(&self.id, &[LookupInSpec::count("", None)], None)
@@ -148,7 +305,24 @@ impl CouchbaseList<'_> {
         res.content_as(0)
     }
 
-    pub async fn clear(&self) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "list_clear",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "list_clear",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    pub async fn clear_internal(&self) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection.remove(&self.id, None).await?;
         Ok(())
     }
@@ -165,13 +339,92 @@ impl CouchbaseMap<'_> {
     pub async fn iter<T: DeserializeOwned>(
         &self,
     ) -> crate::error::Result<impl Iterator<Item = (String, T)>> {
+        self.iter_internal().await
+    }
+
+    pub async fn get<V: DeserializeOwned>(&self, id: impl Into<String>) -> crate::error::Result<V> {
+        self.get_internal(id).await
+    }
+
+    pub async fn insert<V: Serialize>(
+        &self,
+        id: impl Into<String>,
+        value: V,
+    ) -> crate::error::Result<()> {
+        self.insert_internal(id, value).await
+    }
+
+    pub async fn remove(&self, id: impl Into<String>) -> crate::error::Result<()> {
+        self.remove_internal(id).await
+    }
+
+    pub async fn contains_key(&self, id: impl Into<String>) -> crate::error::Result<bool> {
+        self.contains_key_internal(id).await
+    }
+
+    pub async fn len(&self) -> crate::error::Result<usize> {
+        self.len_internal().await
+    }
+
+    pub async fn keys(&self) -> crate::error::Result<Vec<String>> {
+        self.keys_internal().await
+    }
+
+    pub async fn values<T: DeserializeOwned>(&self) -> crate::error::Result<Vec<T>> {
+        self.values_internal().await
+    }
+
+    pub async fn clear(&self) -> crate::error::Result<()> {
+        self.clear_internal().await
+    }
+
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_iter",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_iter",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn iter_internal<T: DeserializeOwned>(
+        &self,
+    ) -> crate::error::Result<impl Iterator<Item = (String, T)>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
         let list_contents: HashMap<String, T> = res.content_as()?;
 
         Ok(list_contents.into_iter())
     }
 
-    pub async fn get<V: DeserializeOwned>(&self, id: impl Into<String>) -> crate::error::Result<V> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_get",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_get",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn get_internal<V: DeserializeOwned>(
+        &self,
+        id: impl Into<String>,
+    ) -> crate::error::Result<V> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(&self.id, &[LookupInSpec::get(id, None)], None)
@@ -180,11 +433,28 @@ impl CouchbaseMap<'_> {
         res.content_as(0)
     }
 
-    pub async fn insert<V: Serialize>(
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_insert",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_insert",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn insert_internal<V: Serialize>(
         &self,
         id: impl Into<String>,
         value: V,
     ) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection
             .mutate_in(
                 &self.id,
@@ -196,7 +466,24 @@ impl CouchbaseMap<'_> {
         Ok(())
     }
 
-    pub async fn remove(&self, id: impl Into<String>) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_remove",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_remove",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn remove_internal(&self, id: impl Into<String>) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection
             .mutate_in(&self.id, &[MutateInSpec::remove(id, None)], None)
             .await?;
@@ -204,7 +491,24 @@ impl CouchbaseMap<'_> {
         Ok(())
     }
 
-    pub async fn contains_key(&self, id: impl Into<String>) -> crate::error::Result<bool> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_contains_key",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_contains_key",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn contains_key_internal(&self, id: impl Into<String>) -> crate::error::Result<bool> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(&self.id, &[LookupInSpec::exists(id, None)], None)
@@ -213,7 +517,24 @@ impl CouchbaseMap<'_> {
         res.exists(0)
     }
 
-    pub async fn len(&self) -> crate::error::Result<usize> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_len",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_len",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn len_internal(&self) -> crate::error::Result<usize> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(&self.id, &[LookupInSpec::count("", None)], None)
@@ -222,21 +543,72 @@ impl CouchbaseMap<'_> {
         res.content_as(0)
     }
 
-    pub async fn keys(&self) -> crate::error::Result<Vec<String>> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_keys",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_keys",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn keys_internal(&self) -> crate::error::Result<Vec<String>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
 
         let map_contents: HashMap<String, serde_json::Value> = res.content_as()?;
         Ok(map_contents.keys().cloned().collect())
     }
 
-    pub async fn values<T: DeserializeOwned>(&self) -> crate::error::Result<Vec<T>> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_values",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_values",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn values_internal<T: DeserializeOwned>(&self) -> crate::error::Result<Vec<T>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
 
         let map_contents: HashMap<String, T> = res.content_as()?;
         Ok(map_contents.into_values().collect())
     }
 
-    pub async fn clear(&self) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "map_clear",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "map_clear",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn clear_internal(&self) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection.remove(&self.id, None).await?;
         Ok(())
     }
@@ -251,13 +623,83 @@ pub struct CouchbaseSet<'a> {
 
 impl CouchbaseSet<'_> {
     pub async fn iter<T: DeserializeOwned>(&self) -> crate::error::Result<impl Iterator<Item = T>> {
+        self.iter_internal().await
+    }
+
+    pub async fn insert<V: Serialize>(&self, value: V) -> crate::error::Result<(bool)> {
+        self.insert_internal(value).await
+    }
+
+    pub async fn remove<T: DeserializeOwned + PartialEq>(
+        &self,
+        value: T,
+    ) -> crate::error::Result<()> {
+        self.remove_internal(value).await
+    }
+
+    pub async fn values<T: DeserializeOwned>(&self) -> crate::error::Result<Vec<T>> {
+        self.values_internal().await
+    }
+
+    pub async fn contains<T: PartialEq + DeserializeOwned>(
+        &self,
+        value: T,
+    ) -> crate::error::Result<bool> {
+        self.contains_internal(value).await
+    }
+
+    pub async fn len(&self) -> crate::error::Result<usize> {
+        self.len_internal().await
+    }
+
+    pub async fn clear(&self) -> crate::error::Result<()> {
+        self.clear_internal().await
+    }
+
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_iter",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_iter",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn iter_internal<T: DeserializeOwned>(
+        &self,
+    ) -> crate::error::Result<impl Iterator<Item = T>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
         let list_contents: Vec<T> = res.content_as()?;
 
         Ok(list_contents.into_iter())
     }
 
-    pub async fn insert<V: Serialize>(&self, value: V) -> crate::error::Result<(bool)> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_insert",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_insert",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn insert_internal<V: Serialize>(&self, value: V) -> crate::error::Result<(bool)> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .mutate_in(
@@ -279,10 +721,27 @@ impl CouchbaseSet<'_> {
         Ok(true)
     }
 
-    pub async fn remove<T: DeserializeOwned + PartialEq>(
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_remove",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_remove",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn remove_internal<T: DeserializeOwned + PartialEq>(
         &self,
         value: T,
     ) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         for _ in 0..16 {
             let items = self.collection.get(&self.id, None).await?;
             let cas = items.cas();
@@ -321,17 +780,51 @@ impl CouchbaseSet<'_> {
         })
     }
 
-    pub async fn values<T: DeserializeOwned>(&self) -> crate::error::Result<Vec<T>> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_values",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_values",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn values_internal<T: DeserializeOwned>(&self) -> crate::error::Result<Vec<T>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
 
         let set_contents: Vec<T> = res.content_as()?;
         Ok(set_contents)
     }
 
-    pub async fn contains<T: PartialEq + DeserializeOwned>(
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_contains",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_contains",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn contains_internal<T: PartialEq + DeserializeOwned>(
         &self,
         value: T,
     ) -> crate::error::Result<bool> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
 
         let set_contents: Vec<T> = res.content_as()?;
@@ -344,7 +837,24 @@ impl CouchbaseSet<'_> {
         Ok(false)
     }
 
-    pub async fn len(&self) -> crate::error::Result<usize> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_len",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_len",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn len_internal(&self) -> crate::error::Result<usize> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(&self.id, &[LookupInSpec::count("", None)], None)
@@ -353,7 +863,24 @@ impl CouchbaseSet<'_> {
         res.content_as(0)
     }
 
-    pub async fn clear(&self) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "set_clear",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "set_clear",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn clear_internal(&self) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection.remove(&self.id, None).await?;
         Ok(())
     }
@@ -368,6 +895,45 @@ pub struct CouchbaseQueue<'a> {
 
 impl CouchbaseQueue<'_> {
     pub async fn iter<T: DeserializeOwned>(&self) -> crate::error::Result<impl Iterator<Item = T>> {
+        self.iter_internal().await
+    }
+
+    pub async fn push<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+        self.push_internal(value).await
+    }
+
+    pub async fn pop<T: DeserializeOwned>(&self) -> crate::error::Result<T> {
+        self.pop_internal().await
+    }
+
+    pub async fn len(&self) -> crate::error::Result<usize> {
+        self.len_internal().await
+    }
+
+    pub async fn clear(&self) -> crate::error::Result<()> {
+        self.clear_internal().await
+    }
+
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "queue_iter",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "queue_iter",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn iter_internal<T: DeserializeOwned>(
+        &self,
+    ) -> crate::error::Result<impl Iterator<Item = T>> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self.collection.get(&self.id, None).await?;
 
         let mut list_contents: Vec<T> = res.content_as()?;
@@ -376,7 +942,24 @@ impl CouchbaseQueue<'_> {
         Ok(list_contents.into_iter())
     }
 
-    pub async fn push<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "queue_push",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "queue_push",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn push_internal<V: Serialize>(&self, value: V) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection
             .mutate_in(
                 &self.id,
@@ -388,7 +971,24 @@ impl CouchbaseQueue<'_> {
         Ok(())
     }
 
-    pub async fn pop<T: DeserializeOwned>(&self) -> crate::error::Result<T> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "queue_pop",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "queue_pop",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn pop_internal<T: DeserializeOwned>(&self) -> crate::error::Result<T> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         for _ in 0..16 {
             let res = self
                 .collection
@@ -421,7 +1021,24 @@ impl CouchbaseQueue<'_> {
         })
     }
 
-    pub async fn len(&self) -> crate::error::Result<usize> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "queue_len",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "queue_len",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn len_internal(&self) -> crate::error::Result<usize> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         let res = self
             .collection
             .lookup_in(&self.id, &[LookupInSpec::count("", None)], None)
@@ -430,7 +1047,24 @@ impl CouchbaseQueue<'_> {
         res.content_as(0)
     }
 
-    pub async fn clear(&self) -> crate::error::Result<()> {
+    #[instrument(
+        skip_all,
+        level = Level::DEBUG,
+        name = "queue_clear",
+        fields(
+        db.system = "couchbase",
+        db.couchbase.service = "kv",
+        db.operation = "queue_clear",
+        db.name = self.collection.bucket_name(),
+        db.couchbase.collection = self.collection.name(),
+        db.couchbase.scope = self.collection.scope_name(),
+        db.couchbase.retries = 0,
+        db.couchbase.cluster_name,
+        db.couchbase.cluster_uuid,
+        ))]
+    async fn clear_internal(&self) -> crate::error::Result<()> {
+        self.collection.tracing_client.record_generic_fields().await;
+
         self.collection.remove(&self.id, None).await?;
         Ok(())
     }
