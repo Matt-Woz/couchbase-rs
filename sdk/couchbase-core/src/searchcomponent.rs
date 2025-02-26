@@ -11,7 +11,7 @@ use crate::searchx::search::Search;
 use crate::searchx::search_respreader::SearchRespReader;
 use crate::searchx::search_result::{FacetResult, MetaData, ResultHit};
 use crate::service_type::ServiceType;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::{TracingConfig};
 use crate::{error, searchx};
 use arc_swap::ArcSwap;
 use futures::StreamExt;
@@ -22,7 +22,6 @@ use std::sync::Arc;
 
 pub(crate) struct SearchComponent<C: Client> {
     http_component: HttpComponent<C>,
-    tracing: Arc<TracingComponent>,
 
     retry_manager: Arc<RetryManager>,
 
@@ -40,6 +39,7 @@ pub(crate) struct SearchComponentConfig {
     pub authenticator: Arc<Authenticator>,
 
     pub vector_search_enabled: bool,
+    pub tracing_config: TracingConfig,
 }
 
 #[derive(Debug)]
@@ -80,7 +80,6 @@ impl<C: Client> SearchComponent<C> {
     pub fn new(
         retry_manager: Arc<RetryManager>,
         http_client: Arc<C>,
-        tracing: Arc<TracingComponent>,
         config: SearchComponentConfig,
         opts: SearchComponentOptions,
     ) -> Self {
@@ -89,9 +88,8 @@ impl<C: Client> SearchComponent<C> {
                 ServiceType::Search,
                 opts.user_agent,
                 http_client,
-                HttpComponentState::new(config.endpoints, config.authenticator),
+                HttpComponentState::new(config.endpoints, config.authenticator, config.tracing_config),
             ),
-            tracing,
             retry_manager,
             state: ArcSwap::new(Arc::new(SearchComponentState {
                 vector_search_enabled: config.vector_search_enabled,
@@ -103,6 +101,7 @@ impl<C: Client> SearchComponent<C> {
         self.http_component.reconfigure(HttpComponentState::new(
             config.endpoints,
             config.authenticator,
+            config.tracing_config,
         ));
 
         self.state.swap(Arc::new(SearchComponentState {
@@ -140,7 +139,8 @@ impl<C: Client> SearchComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (Search::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
@@ -149,7 +149,7 @@ impl<C: Client> SearchComponent<C> {
                             password,
 
                             vector_search_enabled: self.state.load().vector_search_enabled,
-                            tracing: self.tracing.clone(),
+                            tracing_config,
                         }
                         .query(&copts)
                         .await)
@@ -235,7 +235,8 @@ impl<C: Client> SearchComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         operation(Search::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
@@ -244,7 +245,7 @@ impl<C: Client> SearchComponent<C> {
                             password,
 
                             vector_search_enabled: self.state.load().vector_search_enabled,
-                            tracing: self.tracing.clone(),
+                            tracing_config,
                         })
                         .await
                     },

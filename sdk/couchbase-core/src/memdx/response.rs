@@ -11,7 +11,7 @@ use crate::memdx::ops_core::OpsCore;
 use crate::memdx::ops_crud::{decode_res_ext_frames, OpsCrud};
 use crate::memdx::status::Status;
 use crate::memdx::subdoc::{SubDocResult, SubdocDocFlag};
-use crate::tracingcomponent::{end_dispatch_span, EndDispatchFields, OperationId};
+use crate::tracing::{EndDispatchFields, OperationId};
 use byteorder::{BigEndian, ReadBytesExt};
 use tokio_io::Buf;
 
@@ -259,10 +259,8 @@ impl TryFromClientResponse for SetResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -341,10 +339,8 @@ impl TryFromClientResponse for GetResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -398,10 +394,8 @@ impl TryFromClientResponse for GetMetaResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -465,10 +459,8 @@ impl TryFromClientResponse for DeleteResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -534,10 +526,8 @@ impl TryFromClientResponse for GetAndLockResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -595,10 +585,8 @@ impl TryFromClientResponse for GetAndTouchResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -652,10 +640,8 @@ impl TryFromClientResponse for UnlockResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -708,10 +694,8 @@ impl TryFromClientResponse for TouchResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -766,10 +750,8 @@ impl TryFromClientResponse for AddResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -825,10 +807,8 @@ impl TryFromClientResponse for ReplaceResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -901,10 +881,8 @@ impl TryFromClientResponse for AppendResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -979,10 +957,8 @@ impl TryFromClientResponse for PrependResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -1057,10 +1033,8 @@ impl TryFromClientResponse for IncrementResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -1130,10 +1104,8 @@ impl TryFromClientResponse for DecrementResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let status = packet.status;
 
@@ -1206,10 +1178,8 @@ impl TryFromClientResponse for LookupInResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let cas = packet.cas;
         let status = packet.status;
@@ -1368,10 +1338,8 @@ impl TryFromClientResponse for MutateInResponse {
             None
         };
 
-        end_dispatch_span(
-            span,
-            EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque))),
-        );
+        EndDispatchFields::new(server_duration, Some(OperationId::from_u32(packet.opaque)))
+            .end_span(span);
 
         let cas = packet.cas;
         let status = packet.status;

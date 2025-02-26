@@ -1,3 +1,4 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,7 +9,7 @@ use crate::memdx::connection::ConnectionType;
 use crate::memdx::error::Result;
 use crate::memdx::packet::{RequestPacket, ResponsePacket};
 use crate::memdx::pendingop::ClientPendingOp;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::TracingConfig;
 
 pub type OrphanResponseHandler = Arc<dyn Fn(ResponsePacket) + Send + Sync>;
 pub type OnConnectionCloseHandler = Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>;
@@ -17,17 +18,21 @@ pub struct DispatcherOptions {
     pub orphan_handler: OrphanResponseHandler,
     pub on_connection_close_handler: OnConnectionCloseHandler,
     pub disable_decompression: bool,
+}
 
-    pub tracing: Arc<TracingComponent>,
+#[derive(Debug, Clone)]
+pub struct DispatcherConfig {
+    pub(crate) tracing_config: TracingConfig,
 }
 
 #[async_trait]
 pub trait Dispatcher: Send + Sync {
-    fn new(conn: ConnectionType, opts: DispatcherOptions) -> Self;
+    fn new(conn: ConnectionType, config: DispatcherConfig, opts: DispatcherOptions) -> Self;
     async fn dispatch<'a>(
         &self,
         packet: RequestPacket<'a>,
         response_context: Option<ResponseContext>,
     ) -> Result<ClientPendingOp>;
     async fn close(&self) -> Result<()>;
+    async fn reconfigure(&self, opts: DispatcherConfig);
 }

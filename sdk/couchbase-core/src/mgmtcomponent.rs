@@ -17,7 +17,7 @@ use crate::mgmtx::responses::{
 use crate::retry::{orchestrate_retries, RetryInfo, RetryManager};
 use crate::retrybesteffort::ExponentialBackoffCalculator;
 use crate::service_type::ServiceType;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::{TracingConfig};
 use crate::{error, mgmtx};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,7 +25,6 @@ use std::time::Duration;
 
 pub(crate) struct MgmtComponent<C: Client> {
     http_component: HttpComponent<C>,
-    tracing: Arc<TracingComponent>,
 
     retry_manager: Arc<RetryManager>,
 }
@@ -34,6 +33,7 @@ pub(crate) struct MgmtComponent<C: Client> {
 pub(crate) struct MgmtComponentConfig {
     pub endpoints: HashMap<String, String>,
     pub authenticator: Arc<Authenticator>,
+    pub tracing_config: TracingConfig,
 }
 
 pub(crate) struct MgmtComponentOptions {
@@ -44,7 +44,6 @@ impl<C: Client> MgmtComponent<C> {
     pub fn new(
         retry_manager: Arc<RetryManager>,
         http_client: Arc<C>,
-        tracing: Arc<TracingComponent>,
         config: MgmtComponentConfig,
         opts: MgmtComponentOptions,
     ) -> Self {
@@ -53,9 +52,8 @@ impl<C: Client> MgmtComponent<C> {
                 ServiceType::Mgmt,
                 opts.user_agent,
                 http_client,
-                HttpComponentState::new(config.endpoints, config.authenticator),
+                HttpComponentState::new(config.endpoints, config.authenticator, config.tracing_config),
             ),
-            tracing,
             retry_manager,
         }
     }
@@ -64,6 +62,7 @@ impl<C: Client> MgmtComponent<C> {
         self.http_component.reconfigure(HttpComponentState::new(
             config.endpoints,
             config.authenticator,
+            config.tracing_config,
         ))
     }
 
@@ -83,14 +82,15 @@ impl<C: Client> MgmtComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (mgmtx::mgmt::Management::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: Some(self.tracing.clone()),
+                            tracing_config,
                         }
                         .get_collection_manifest(&copts)
                         .await)
@@ -123,14 +123,15 @@ impl<C: Client> MgmtComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (mgmtx::mgmt::Management::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: Some(self.tracing.clone()),
+                            tracing_config,
                         }
                         .create_scope(&copts)
                         .await)
@@ -163,14 +164,15 @@ impl<C: Client> MgmtComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (mgmtx::mgmt::Management::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: Some(self.tracing.clone()),
+                            tracing_config,
                         }
                         .delete_scope(&copts)
                         .await)
@@ -203,14 +205,15 @@ impl<C: Client> MgmtComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (mgmtx::mgmt::Management::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: Some(self.tracing.clone()),
+                            tracing_config,
                         }
                         .create_collection(&copts)
                         .await)
@@ -243,14 +246,15 @@ impl<C: Client> MgmtComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (mgmtx::mgmt::Management::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: Some(self.tracing.clone()),
+                            tracing_config,
                         }
                         .delete_collection(&copts)
                         .await)
@@ -283,14 +287,15 @@ impl<C: Client> MgmtComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
-                        let res = match (mgmtx::mgmt::Management::<C> {
+                           password: String,
+                           tracing_config: TracingConfig| {
+                            let res = match (mgmtx::mgmt::Management::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: Some(self.tracing.clone()),
+                            tracing_config,
                         }
                         .update_collection(&copts)
                         .await)

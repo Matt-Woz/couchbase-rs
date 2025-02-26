@@ -5,9 +5,7 @@ use crate::searchx::error;
 use crate::searchx::index::Index;
 use crate::searchx::query_options::QueryOptions;
 use crate::searchx::search_respreader::SearchRespReader;
-use crate::tracingcomponent::{
-    end_dispatch_span, BeginDispatchFields, EndDispatchFields, TracingComponent,
-};
+use crate::tracing::{BeginDispatchFields, EndDispatchFields, TracingConfig};
 use crate::util::get_host_port_tuple_from_uri;
 use bytes::Bytes;
 use http::{Method, StatusCode};
@@ -25,7 +23,7 @@ pub struct Search<C: Client> {
 
     pub vector_search_enabled: bool,
 
-    pub(crate) tracing: Arc<TracingComponent>,
+    pub(crate) tracing_config: TracingConfig,
 }
 
 impl<C: Client> Search<C> {
@@ -118,11 +116,12 @@ impl<C: Client> Search<C> {
             source: Some(Arc::new(e)),
         })?;
 
-        let dispatch_span = self.tracing.create_dispatch_span(&BeginDispatchFields::new(
+        let dispatch_span = BeginDispatchFields::new(
             None,
             get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
             None,
-        ));
+            self.tracing_config.cluster_labels.clone(),
+        ).create_span();
 
         let res = self
             .execute(
@@ -137,7 +136,8 @@ impl<C: Client> Search<C> {
             .await
             .map_err(|e| error::Error::new_http_error(e, &self.endpoint))?;
 
-        end_dispatch_span(dispatch_span, EndDispatchFields::new(None, None));
+        EndDispatchFields::new(None, None)
+            .end_span(dispatch_span);
 
         SearchRespReader::new(res, &self.endpoint).await
     }

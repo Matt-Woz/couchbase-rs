@@ -5,6 +5,7 @@ use crate::mgmtx::mgmt::Management;
 use crate::mgmtx::node_target::NodeTarget;
 use crate::mgmtx::options::{EnsureManifestPollOptions, GetCollectionManifestOptions};
 use std::sync::Arc;
+use crate::tracing::TracingConfig;
 
 #[derive(Debug, Clone)]
 pub struct EnsureManifestHelper<'a> {
@@ -44,7 +45,7 @@ impl<'a> EnsureManifestHelper<'a> {
             endpoint: target.endpoint.to_string(),
             username: target.username.to_string(),
             password: target.password.to_string(),
-            tracing: None,
+            tracing_config: TracingConfig::default(),
         }
         .get_collection_manifest(&GetCollectionManifestOptions {
             on_behalf_of_info: self.on_behalf_of_info,

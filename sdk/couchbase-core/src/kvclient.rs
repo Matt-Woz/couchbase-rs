@@ -15,14 +15,14 @@ use crate::error::Result;
 use crate::error::{Error, ErrorKind};
 use crate::memdx::auth_mechanism::AuthMechanism;
 use crate::memdx::connection::{ConnectOptions, ConnectionType, TcpConnection, TlsConnection};
-use crate::memdx::dispatcher::{Dispatcher, DispatcherOptions, OrphanResponseHandler};
+use crate::memdx::dispatcher::{Dispatcher, DispatcherConfig, DispatcherOptions, OrphanResponseHandler};
 use crate::memdx::hello_feature::HelloFeature;
 use crate::memdx::op_auth_saslauto::SASLAuthAutoOptions;
 use crate::memdx::op_bootstrap::BootstrapOptions;
 use crate::memdx::request::{GetErrorMapRequest, HelloRequest, SelectBucketRequest};
 use crate::service_type::ServiceType;
 use crate::tls_config::TlsConfig;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::{TracingConfig};
 use crate::util::hostname_from_addr_str;
 
 #[derive(Clone)]
@@ -38,6 +38,8 @@ pub(crate) struct KvClientConfig {
     // disable_bootstrap provides a simple way to validate that all bootstrapping
     // is disabled on the client, mainly used for testing.
     pub disable_bootstrap: bool,
+
+    pub tracing_config: TracingConfig,
 }
 
 impl PartialEq for KvClientConfig {
@@ -59,7 +61,6 @@ pub(crate) struct KvClientOptions {
     pub orphan_handler: OrphanResponseHandler,
     pub on_close: OnKvClientCloseHandler,
     pub disable_decompression: bool,
-    pub tracing: Arc<TracingComponent>,
 }
 
 pub(crate) trait KvClient: Sized + PartialEq + Send + Sync {
@@ -200,7 +201,9 @@ where
             }),
             orphan_handler: opts.orphan_handler,
             disable_decompression: opts.disable_decompression,
-            tracing: opts.tracing,
+        };
+        let memdx_client_config = DispatcherConfig {
+            tracing_config: config.tracing_config.clone(),
         };
 
         let conn = if let Some(tls) = config.tls.clone() {
@@ -240,7 +243,7 @@ where
         let local_addr = *conn.local_addr();
         let remote_hostname = hostname_from_addr_str(&config.address);
 
-        let mut cli = D::new(conn, memdx_client_opts);
+        let mut cli = D::new(conn, memdx_client_config, memdx_client_opts);
 
         let mut kv_cli = StdKvClient {
             remote_addr,
@@ -321,6 +324,10 @@ where
                 "Client config after reconfigure did not match new configuration",
             ));
         }
+
+        self.cli.reconfigure(DispatcherConfig {
+            tracing_config: config.tracing_config.clone(),
+        }).await;
 
         if let Some(bucket_name) = selected_bucket_name {
             let mut current_bucket = self.selected_bucket.lock().await;

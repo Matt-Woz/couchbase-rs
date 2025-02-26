@@ -9,7 +9,7 @@ use crate::httpcomponent::{HttpComponent, HttpComponentState};
 use crate::httpx::client::Client;
 use crate::retry::{orchestrate_retries, RetryInfo, RetryManager, DEFAULT_RETRY_STRATEGY};
 use crate::service_type::ServiceType;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::{TracingConfig};
 use bytes::Bytes;
 use futures::StreamExt;
 use futures_core::Stream;
@@ -18,7 +18,6 @@ use std::sync::Arc;
 
 pub(crate) struct AnalyticsComponent<C: Client> {
     http_component: HttpComponent<C>,
-    tracing: Arc<TracingComponent>,
 
     retry_manager: Arc<RetryManager>,
 }
@@ -27,6 +26,7 @@ pub(crate) struct AnalyticsComponent<C: Client> {
 pub(crate) struct AnalyticsComponentConfig {
     pub endpoints: HashMap<String, String>,
     pub authenticator: Arc<Authenticator>,
+    pub tracing_config: TracingConfig,
 }
 
 pub(crate) struct AnalyticsComponentOptions {
@@ -63,7 +63,6 @@ impl<C: Client> AnalyticsComponent<C> {
     pub fn new(
         retry_manager: Arc<RetryManager>,
         http_client: Arc<C>,
-        tracing: Arc<TracingComponent>,
         config: AnalyticsComponentConfig,
         opts: AnalyticsComponentOptions,
     ) -> Self {
@@ -72,9 +71,8 @@ impl<C: Client> AnalyticsComponent<C> {
                 ServiceType::Analytics,
                 opts.user_agent,
                 http_client,
-                HttpComponentState::new(config.endpoints, config.authenticator),
+                HttpComponentState::new(config.endpoints, config.authenticator, config.tracing_config),
             ),
-            tracing,
             retry_manager,
         }
     }
@@ -83,6 +81,7 @@ impl<C: Client> AnalyticsComponent<C> {
         self.http_component.reconfigure(HttpComponentState::new(
             config.endpoints,
             config.authenticator,
+            config.tracing_config,
         ))
     }
 
@@ -107,14 +106,15 @@ impl<C: Client> AnalyticsComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (Analytics::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: self.tracing.clone(),
+                            tracing_config,
                         }
                         .query(&copts)
                         .await)

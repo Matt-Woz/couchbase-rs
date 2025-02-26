@@ -10,9 +10,7 @@ use crate::queryx::query_options::{
 };
 use crate::queryx::query_respreader::QueryRespReader;
 use crate::retry::RetryStrategy;
-use crate::tracingcomponent::{
-    end_dispatch_span, BeginDispatchFields, EndDispatchFields, OperationId, TracingComponent,
-};
+use crate::tracing::{BeginDispatchFields, EndDispatchFields, OperationId, TracingUtils, TracingConfig};
 use crate::util::{get_host_port_from_uri, get_host_port_tuple_from_uri};
 use bytes::Bytes;
 use futures::StreamExt;
@@ -36,7 +34,7 @@ pub struct Query<C: Client> {
     pub username: String,
     pub password: String,
 
-    pub(crate) tracing: Arc<TracingComponent>,
+    pub(crate) tracing_config: TracingConfig,
 }
 
 impl<C: Client> Query<C> {
@@ -139,11 +137,12 @@ impl<C: Client> Query<C> {
             )
         })?);
 
-        let dispatch_span = self.tracing.create_dispatch_span(&BeginDispatchFields::new(
+        let dispatch_span = BeginDispatchFields::new(
             None,
             get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
             None,
-        ));
+            self.tracing_config.cluster_labels.clone(),
+        ).create_span();
 
         let res = self
             .execute(
@@ -159,10 +158,8 @@ impl<C: Client> Query<C> {
                 Error::new_http_error(e, &self.endpoint, &statement, &client_context_id)
             })?;
 
-        end_dispatch_span(
-            dispatch_span,
-            EndDispatchFields::new(None, Some(OperationId::String(client_context_id.clone()))),
-        );
+        EndDispatchFields::new(None, Some(OperationId::String(client_context_id.clone())))
+            .end_span(dispatch_span);
 
         QueryRespReader::new(res, &self.endpoint, statement, client_context_id).await
     }
@@ -179,7 +176,7 @@ impl<C: Client> Query<C> {
         db.couchbase.cluster_uuid,
         ))]
     async fn query_with_span(&self, opts: &QueryOptions) -> error::Result<QueryRespReader> {
-        self.tracing.record_cluster_labels(&Span::current());
+        TracingUtils::record_cluster_labels(&Span::current(), &self.tracing_config.cluster_labels);
         self.query(opts).await
     }
 

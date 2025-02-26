@@ -11,6 +11,7 @@ use crate::retrybesteffort::BackoffCalculator;
 use crate::service_type::ServiceType;
 use crate::util::get_host_port_from_uri;
 use rand::Rng;
+use crate::tracing::TracingConfig;
 
 pub(crate) struct HttpComponent<C: Client> {
     service_type: ServiceType,
@@ -23,6 +24,7 @@ pub(crate) struct HttpComponent<C: Client> {
 pub(crate) struct HttpComponentState {
     endpoints: HashMap<String, String>,
     authenticator: Arc<Authenticator>,
+    tracing_config: TracingConfig,
 }
 
 pub(crate) struct HttpEndpointProperties {
@@ -55,7 +57,7 @@ impl<C: Client> HttpComponent<C> {
     pub fn select_specific_endpoint(
         &self,
         endpoint_id: &str,
-    ) -> error::Result<(Arc<C>, HttpEndpointProperties)> {
+    ) -> error::Result<(Arc<C>, HttpEndpointProperties, TracingConfig)> {
         let mut guard = self.state.lock().unwrap();
         let state = &*guard;
 
@@ -90,13 +92,14 @@ impl<C: Client> HttpComponent<C> {
                 username: user_pass.username,
                 password: user_pass.password,
             },
+            state.tracing_config.clone(),
         ))
     }
 
     pub fn select_endpoint(
         &self,
         endpoint_ids_to_ignore: &[String],
-    ) -> error::Result<Option<(Arc<C>, HttpEndpointProperties)>> {
+    ) -> error::Result<Option<(Arc<C>, HttpEndpointProperties, TracingConfig)>> {
         let mut guard = self.state.lock().unwrap();
         let state = &*guard;
 
@@ -138,6 +141,7 @@ impl<C: Client> HttpComponent<C> {
                 username: user_pass.username,
                 password: user_pass.password,
             },
+            state.tracing_config.clone(),
         )))
     }
 
@@ -148,7 +152,7 @@ impl<C: Client> HttpComponent<C> {
     pub async fn orchestrate_endpoint<Resp, Fut>(
         &self,
         endpoint_id: Option<String>,
-        operation: impl Fn(Arc<C>, String, String, String, String) -> Fut + Send + Sync,
+        operation: impl Fn(Arc<C>, String, String, String, String, TracingConfig) -> Fut + Send + Sync,
     ) -> error::Result<Resp>
     where
         C: Client,
@@ -156,7 +160,7 @@ impl<C: Client> HttpComponent<C> {
         Resp: Send,
     {
         if let Some(endpoint_id) = endpoint_id {
-            let (client, endpoint_properties) = self.select_specific_endpoint(&endpoint_id)?;
+            let (client, endpoint_properties, tracing_config) = self.select_specific_endpoint(&endpoint_id)?;
 
             return operation(
                 client,
@@ -164,11 +168,12 @@ impl<C: Client> HttpComponent<C> {
                 endpoint_properties.endpoint,
                 endpoint_properties.username,
                 endpoint_properties.password,
+                tracing_config,
             )
             .await;
         }
 
-        let (client, endpoint_properties) = if let Some(selected) = self.select_endpoint(&[])? {
+        let (client, endpoint_properties, tracing_config) = if let Some(selected) = self.select_endpoint(&[])? {
             selected
         } else {
             return Err(ErrorKind::ServiceNotAvailable {
@@ -183,6 +188,7 @@ impl<C: Client> HttpComponent<C> {
             endpoint_properties.endpoint,
             endpoint_properties.username,
             endpoint_properties.password,
+            tracing_config,
         )
         .await
     }
@@ -250,10 +256,11 @@ impl<C: Client> HttpComponent<C> {
 }
 
 impl HttpComponentState {
-    pub fn new(endpoints: HashMap<String, String>, authenticator: Arc<Authenticator>) -> Self {
+    pub fn new(endpoints: HashMap<String, String>, authenticator: Arc<Authenticator>, tracing_config: TracingConfig) -> Self {
         Self {
             endpoints,
             authenticator,
+            tracing_config,
         }
     }
 }

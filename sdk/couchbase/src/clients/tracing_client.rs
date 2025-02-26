@@ -1,6 +1,6 @@
 use crate::clients::agent_provider::CouchbaseAgentProvider;
 use crate::durability_level::DurabilityLevel;
-use couchbase_core::tracingcomponent::ClusterLabels;
+use couchbase_core::tracing::ClusterLabels;
 use tracing::{trace_span, Span};
 
 #[derive(Clone)]
@@ -66,10 +66,10 @@ impl CouchbaseTracingClient {
         Self { agent_provider }
     }
 
-    async fn get_cluster_labels(&self) -> Option<ClusterLabels> {
+    async fn cluster_labels(&self) -> Option<ClusterLabels> {
         let agent = self.agent_provider.get_agent().await;
 
-        agent.cluster_labels()
+        agent.cluster_labels().await
     }
 
     async fn create_request_encoding_span(&self) -> Span {
@@ -102,7 +102,7 @@ impl CouchbaseTracingClient {
     }
 
     async fn record_cluster_labels(&self, span: &Span) {
-        let cluster_labels = self.get_cluster_labels().await;
+        let cluster_labels = self.cluster_labels().await;
 
         if let Some(cluster_labels) = cluster_labels {
             if let Some(cluster_uuid) = cluster_labels.cluster_uuid {
@@ -138,7 +138,7 @@ impl Couchbase2TracingClient {
         unimplemented!()
     }
 
-    async fn get_cluster_labels(&self) -> Option<ClusterLabels> {
+    async fn cluster_labels(&self) -> Option<ClusterLabels> {
         unimplemented!()
     }
 }

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::thread::spawn;
 use std::{env, mem};
-
+use std::future::Future;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{SinkExt, TryFutureExt};
@@ -28,16 +28,14 @@ use crate::memdx::client_response::ClientResponse;
 use crate::memdx::codec::KeyValueCodec;
 use crate::memdx::connection::{ConnectionType, Stream};
 use crate::memdx::datatype::DataTypeFlag;
-use crate::memdx::dispatcher::{
-    Dispatcher, DispatcherOptions, OnConnectionCloseHandler, OrphanResponseHandler,
-};
+use crate::memdx::dispatcher::{Dispatcher, DispatcherConfig, DispatcherOptions, OnConnectionCloseHandler, OrphanResponseHandler};
 use crate::memdx::error;
 use crate::memdx::error::{CancellationErrorKind, Error};
 use crate::memdx::hello_feature::HelloFeature::DataType;
 use crate::memdx::packet::{RequestPacket, ResponsePacket};
 use crate::memdx::pendingop::ClientPendingOp;
 use crate::memdx::subdoc::SubdocRequestInfo;
-use crate::tracingcomponent::{BeginDispatchFields, TracingComponent};
+use crate::tracing::{BeginDispatchFields, TracingUtils, TracingConfig};
 
 pub(crate) type ResponseSender = Sender<error::Result<ClientResponse>>;
 pub(crate) type OpaqueMap = HashMap<u32, Arc<SenderContext>>;
@@ -93,7 +91,7 @@ pub struct Client {
 
     closed: AtomicBool,
 
-    tracing: Arc<TracingComponent>,
+    config: RwLock<DispatcherConfig>
 }
 
 impl Client {
@@ -242,8 +240,11 @@ impl Client {
         tokio::io::split(stream)
     }
 
-    fn create_dispatch_span(&self) -> Span {
-        let dispatch_fields = BeginDispatchFields::new(
+    async fn create_dispatch_span(&self) -> Span {
+        let config = self.config.read().await;
+        let cluster_labels = config.tracing_config.cluster_labels.clone();
+
+        BeginDispatchFields::new(
             Some((
                 self.local_addr.ip().to_string(),
                 self.local_addr.port().to_string(),
@@ -253,14 +254,14 @@ impl Client {
                 self.peer_addr.port().to_string(),
             ),
             Some(self.client_id.to_string()),
-        );
-        self.tracing.create_dispatch_span(&dispatch_fields)
+            cluster_labels,
+        ).create_span()
     }
 }
 
 #[async_trait]
 impl Dispatcher for Client {
-    fn new(conn: ConnectionType, opts: DispatcherOptions) -> Self {
+    fn new(conn: ConnectionType, config: DispatcherConfig, opts: DispatcherOptions) -> Self {
         let local_addr = *conn.local_addr();
         let peer_addr = *conn.peer_addr();
 
@@ -308,8 +309,7 @@ impl Dispatcher for Client {
             peer_addr,
 
             closed: AtomicBool::new(false),
-
-            tracing: opts.tracing,
+            config: RwLock::new(config),
         }
     }
 
@@ -320,7 +320,7 @@ impl Dispatcher for Client {
     ) -> error::Result<ClientPendingOp> {
         let (response_tx, response_rx) = mpsc::channel(1);
 
-        let dispatch_span = self.create_dispatch_span();
+        let dispatch_span = self.create_dispatch_span().await;
 
         let context = response_context.unwrap_or(ResponseContext {
             cas: packet.cas,
@@ -399,5 +399,10 @@ impl Dispatcher for Client {
         }
 
         Ok(())
+    }
+
+    async fn reconfigure(&self, new_config: DispatcherConfig) {
+        let mut config = self.config.write().await;
+        *config = new_config;
     }
 }

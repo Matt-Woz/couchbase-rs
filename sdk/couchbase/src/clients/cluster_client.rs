@@ -15,7 +15,7 @@ use couchbase_connstr::{parse, resolve, Address, SrvRecord};
 use couchbase_core::agentoptions::{CompressionConfig, SeedConfig};
 use couchbase_core::ondemand_agentmanager::{OnDemandAgentManager, OnDemandAgentManagerOptions};
 use couchbase_core::retry::RetryStrategy;
-use couchbase_core::tracingcomponent::ClusterLabels;
+use couchbase_core::tracing::ClusterLabels;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;

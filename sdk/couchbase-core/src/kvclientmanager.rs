@@ -12,7 +12,7 @@ use crate::kvclient::{KvClient, KvClientConfig};
 use crate::kvclient_ops::KvClientOps;
 use crate::kvclientpool::{KvClientPool, KvClientPoolConfig, KvClientPoolOptions};
 use crate::memdx::dispatcher::OrphanResponseHandler;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::TracingUtils;
 
 pub(crate) type KvClientManagerClientType<M> =
     <<M as KvClientManager>::Pool as KvClientPool>::Client;
@@ -52,7 +52,6 @@ pub(crate) struct KvClientManagerOptions {
     pub connect_throttle_period: Duration,
     pub orphan_handler: OrphanResponseHandler,
     pub disable_decompression: bool,
-    pub tracing: Arc<TracingComponent>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -111,7 +110,6 @@ where
                 connect_throttle_period: self.opts.connect_throttle_period,
                 orphan_handler: self.opts.orphan_handler.clone(),
                 disable_decompression: self.opts.disable_decompression,
-                tracing: self.opts.tracing.clone(),
             },
         )
         .await;

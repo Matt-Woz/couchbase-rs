@@ -26,6 +26,7 @@ use byteorder::{BigEndian, ByteOrder};
 use bytes::BufMut;
 use std::time::Duration;
 use tracing::Span;
+use crate::tracing::TracingConfig;
 
 #[derive(Debug)]
 pub struct OpsCrud {
@@ -33,6 +34,8 @@ pub struct OpsCrud {
     pub(crate) durability_enabled: bool,
     pub(crate) preserve_expiry_enabled: bool,
     pub(crate) ext_frames_enabled: bool,
+
+    tracing_config: TracingConfig,
 }
 
 impl OpsCrud {
@@ -240,6 +243,8 @@ impl OpsCrud {
             collection_name: None,
             dispatch_span: Span::none(),
         };
+
+
 
         let pending_op = dispatcher.dispatch(packet, Some(response_context)).await?;
 

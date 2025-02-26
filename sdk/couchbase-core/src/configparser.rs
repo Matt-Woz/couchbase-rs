@@ -6,7 +6,7 @@ use crate::parsedconfig::{
     BucketType, ParsedConfig, ParsedConfigBucket, ParsedConfigBucketFeature, ParsedConfigFeature,
     ParsedConfigNode, ParsedConfigNodeAddresses, ParsedConfigNodePorts,
 };
-use crate::tracingcomponent::ClusterLabels;
+use crate::tracing::ClusterLabels;
 use crate::vbucketmap::VbucketMap;
 
 pub(crate) struct ConfigParser {}

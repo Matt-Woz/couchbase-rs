@@ -275,11 +275,15 @@ where
     }
 
     fn ops_crud(&self) -> OpsCrud {
+
+
         OpsCrud {
             collections_enabled: self.has_feature(HelloFeature::Collections),
             durability_enabled: self.has_feature(HelloFeature::SyncReplication),
             preserve_expiry_enabled: self.has_feature(HelloFeature::PreserveExpiry),
             ext_frames_enabled: self.has_feature(HelloFeature::AltRequests),
+
+            tracing_config: self.config.tracing_config.clone()
         }
     }
 }

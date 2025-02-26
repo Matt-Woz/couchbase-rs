@@ -1,4 +1,4 @@
-use crate::tracingcomponent::ClusterLabels;
+use crate::tracing::ClusterLabels;
 use crate::vbucketmap::VbucketMap;
 use std::cmp::Ordering;
 use std::collections::HashMap;

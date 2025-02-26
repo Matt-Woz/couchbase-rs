@@ -14,7 +14,7 @@ use crate::error::{Error, ErrorKind};
 use crate::kvclient::{KvClient, KvClientConfig, KvClientOptions, OnKvClientCloseHandler};
 use crate::kvclient_ops::KvClientOps;
 use crate::memdx::dispatcher::{Dispatcher, OrphanResponseHandler};
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::TracingUtils;
 // TODO: This needs some work, some more thought should go into the locking strategy as it's possible
 // there are still races in this. Additionally it's extremely easy to write in deadlocks.
 
@@ -42,7 +42,6 @@ pub(crate) struct KvClientPoolOptions {
     pub connect_throttle_period: Duration,
     pub orphan_handler: OrphanResponseHandler,
     pub disable_decompression: bool,
-    pub tracing: Arc<TracingComponent>,
 }
 
 #[derive(Debug, Clone)]
@@ -63,7 +62,6 @@ struct KvClientPoolClientSpawner {
     on_client_close: OnKvClientCloseHandler,
 
     disable_decompression: bool,
-    tracing: Arc<TracingComponent>,
 }
 
 struct KvClientPoolClientHandler<K: KvClient> {
@@ -290,7 +288,6 @@ impl KvClientPoolClientSpawner {
                 orphan_handler: self.orphan_handler.clone(),
                 on_close: self.on_client_close.clone(),
                 disable_decompression: self.disable_decompression,
-                tracing: self.tracing.clone(),
             },
         )
         .await
@@ -333,7 +330,6 @@ where
                 connection_error: Mutex::new(None),
                 on_client_close: Arc::new(|id| Box::pin(async {})),
                 config: Arc::new(Mutex::new(config.client_config)),
-                tracing: opts.tracing,
                 disable_decompression: opts.disable_decompression,
             }),
 

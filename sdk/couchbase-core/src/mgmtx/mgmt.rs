@@ -12,9 +12,7 @@ use crate::mgmtx::responses::{
     CreateCollectionResponse, CreateScopeResponse, DeleteCollectionResponse, DeleteScopeResponse,
     UpdateCollectionResponse,
 };
-use crate::tracingcomponent::{
-    end_dispatch_span, BeginDispatchFields, EndDispatchFields, TracingComponent,
-};
+use crate::tracing::{BeginDispatchFields, EndDispatchFields, TracingConfig};
 use crate::util::get_host_port_tuple_from_uri;
 use bytes::Bytes;
 use http::Method;
@@ -47,7 +45,7 @@ pub struct Management<C: Client> {
     pub username: String,
     pub password: String,
 
-    pub(crate) tracing: Option<Arc<TracingComponent>>,
+    pub(crate) tracing_config: TracingConfig,
 }
 
 impl<C: Client> Management<C> {
@@ -98,29 +96,24 @@ impl<C: Client> Management<C> {
     ) -> error::Result<Response> {
         let req = self.new_request(method, path, content_type, on_behalf_of, headers, body);
 
-        if let Some(tracing) = &self.tracing {
-            let dispatch_span = tracing.create_dispatch_span(&BeginDispatchFields::new(
-                None,
-                get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
-                None,
-            ));
+        let dispatch_span = BeginDispatchFields::new(
+            None,
+            get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
+            None,
+            self.tracing_config.cluster_labels.clone(),
+        ).create_span();
 
-            let res = self
-                .http_client
-                .execute(req)
-                .instrument(dispatch_span.clone())
-                .await
-                .map_err(|e| error::Error::new_message_error("could not execute request").with(e));
+        let res = self
+            .http_client
+            .execute(req)
+            .instrument(dispatch_span.clone())
+            .await
+            .map_err(|e| error::Error::new_message_error("could not execute request").with(e));
 
-            end_dispatch_span(dispatch_span, EndDispatchFields::new(None, None));
+        EndDispatchFields::new(None, None)
+            .end_span(dispatch_span);
 
-            res
-        } else {
-            self.http_client
-                .execute(req)
-                .await
-                .map_err(|e| error::Error::new_message_error("could not execute request").with(e))
-        }
+        res
     }
 
     async fn decode_common_error(response: Response) -> error::Error {

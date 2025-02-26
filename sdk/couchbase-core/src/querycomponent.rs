@@ -18,14 +18,13 @@ use crate::queryx::query_respreader::QueryRespReader;
 use crate::queryx::query_result::{EarlyMetaData, MetaData};
 use crate::retry::{orchestrate_retries, RetryInfo, RetryManager, DEFAULT_RETRY_STRATEGY};
 use crate::service_type::ServiceType;
-use crate::tracingcomponent::TracingComponent;
+use crate::tracing::{TracingUtils, TracingConfig};
 use bytes::Bytes;
 use futures::{Stream, StreamExt};
 
 pub(crate) struct QueryComponent<C: Client> {
     http_component: HttpComponent<C>,
 
-    tracing: Arc<TracingComponent>,
     retry_manager: Arc<RetryManager>,
     prepared_cache: Arc<Mutex<PreparedStatementCache>>,
 }
@@ -34,6 +33,7 @@ pub(crate) struct QueryComponent<C: Client> {
 pub(crate) struct QueryComponentConfig {
     pub endpoints: HashMap<String, String>,
     pub authenticator: Arc<Authenticator>,
+    pub tracing_config: TracingConfig,
 }
 
 pub(crate) struct QueryComponentOptions {
@@ -74,7 +74,6 @@ impl<C: Client> QueryComponent<C> {
     pub fn new(
         retry_manager: Arc<RetryManager>,
         http_client: Arc<C>,
-        tracing: Arc<TracingComponent>,
         config: QueryComponentConfig,
         opts: QueryComponentOptions,
     ) -> Self {
@@ -83,9 +82,8 @@ impl<C: Client> QueryComponent<C> {
                 ServiceType::Query,
                 opts.user_agent,
                 http_client,
-                HttpComponentState::new(config.endpoints, config.authenticator),
+                HttpComponentState::new(config.endpoints, config.authenticator, config.tracing_config),
             ),
-            tracing,
             retry_manager,
             prepared_cache: Arc::new(Mutex::new(PreparedStatementCache::default())),
         }
@@ -95,7 +93,8 @@ impl<C: Client> QueryComponent<C> {
         self.http_component.reconfigure(HttpComponentState::new(
             config.endpoints,
             config.authenticator,
-        ))
+            config.tracing_config,
+        ));
     }
 
     pub async fn query(&self, opts: QueryOptions) -> error::Result<QueryResultStream> {
@@ -118,14 +117,15 @@ impl<C: Client> QueryComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (Query::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: self.tracing.clone(),
+                            tracing_config,
                         }
                         .query(&copts)
                         .await)
@@ -164,7 +164,8 @@ impl<C: Client> QueryComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (PreparedQuery {
                             executor: Query::<C> {
                                 http_client: client,
@@ -172,7 +173,7 @@ impl<C: Client> QueryComponent<C> {
                                 endpoint: endpoint.clone(),
                                 username,
                                 password,
-                                tracing: self.tracing.clone(),
+                                tracing_config,
                             },
                             cache: self.prepared_cache.clone(),
                         }
@@ -217,14 +218,15 @@ impl<C: Client> QueryComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         let res = match (Query::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: self.tracing.clone(),
+                            tracing_config,
                         }
                         .get_all_indexes(&copts)
                         .await)
@@ -418,14 +420,15 @@ impl<C: Client> QueryComponent<C> {
                            endpoint_id: String,
                            endpoint: String,
                            username: String,
-                           password: String| {
+                           password: String,
+                           tracing_config: TracingConfig| {
                         operation(Query::<C> {
                             http_client: client,
                             user_agent: self.http_component.user_agent().to_string(),
                             endpoint: endpoint.clone(),
                             username,
                             password,
-                            tracing: self.tracing.clone(),
+                            tracing_config,
                         })
                         .await
                     },

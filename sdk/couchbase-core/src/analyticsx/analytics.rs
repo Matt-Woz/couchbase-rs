@@ -5,9 +5,7 @@ use crate::analyticsx::query_respreader::QueryRespReader;
 use crate::httpx::client::Client;
 use crate::httpx::request::{Auth, BasicAuth, OnBehalfOfInfo, Request};
 use crate::httpx::response::Response;
-use crate::tracingcomponent::{
-    end_dispatch_span, BeginDispatchFields, EndDispatchFields, OperationId, TracingComponent,
-};
+use crate::tracing::{BeginDispatchFields, EndDispatchFields, OperationId, TracingConfig};
 use crate::util::get_host_port_tuple_from_uri;
 use bytes::Bytes;
 use http::Method;
@@ -23,7 +21,7 @@ pub struct Analytics<C: Client> {
     pub username: String,
     pub password: String,
 
-    pub(crate) tracing: Arc<TracingComponent>,
+    pub(crate) tracing_config: TracingConfig,
 }
 
 impl<C: Client> Analytics<C> {
@@ -129,11 +127,12 @@ impl<C: Client> Analytics<C> {
             None
         };
 
-        let dispatch_span = self.tracing.create_dispatch_span(&BeginDispatchFields::new(
+        let dispatch_span = BeginDispatchFields::new(
             None,
             get_host_port_tuple_from_uri(&self.endpoint).unwrap_or_default(),
             None,
-        ));
+            self.tracing_config.cluster_labels.clone(),
+        ).create_span();
 
         let res = self
             .execute(
@@ -156,10 +155,8 @@ impl<C: Client> Analytics<C> {
                 )
             })?;
 
-        end_dispatch_span(
-            dispatch_span,
-            EndDispatchFields::new(None, client_context_id.clone().map(OperationId::String)),
-        );
+        EndDispatchFields::new(None, client_context_id.clone().map(OperationId::String))
+            .end_span(dispatch_span);
 
         QueryRespReader::new(res, &self.endpoint, statement, client_context_id.clone()).await
     }
